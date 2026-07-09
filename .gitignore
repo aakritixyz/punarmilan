@@ -1,0 +1,31 @@
+# Node / frontend
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Python / backend
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.venv*/
+backend/.venv/
+backend/.venv*/
+
+# Local runtime data - generated or downloaded, never commit
+backend/data/
+backend/models/
+*.db
+*.sqlite
+*.sqlite3
+*.faiss
+
+# Local environment and OS files
+.env
+.env.*
+.DS_Store
+
+# IDE/editor
+.idea/
+.vscode/
