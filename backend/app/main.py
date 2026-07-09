@@ -19,7 +19,7 @@ app = FastAPI(title="Punarmilan Matching API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[],
-    allow_origin_regex=r"https?://(127\.0\.0\.1|localhost):\d+",
+    allow_origin_regex=r"https?://((127\.0\.0\.1|localhost):\d+|[a-z0-9-]+\.vercel\.app)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
