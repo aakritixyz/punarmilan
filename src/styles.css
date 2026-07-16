@@ -137,6 +137,10 @@ main { min-width: 0; }
   min-height: 42px;
   padding: 0 14px;
 }
+.primary:disabled {
+  opacity: .62;
+  cursor: progress;
+}
 
 .audit-rail {
   position: sticky;
@@ -150,6 +154,12 @@ main { min-width: 0; }
   border-bottom: 1px solid #cbd9d8;
   padding: 11px 38px;
   font-size: 13px;
+}
+.audit-rail em {
+  margin-left: auto;
+  color: #607275;
+  font-style: normal;
+  font-size: 12px;
 }
 
 .page {

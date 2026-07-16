@@ -63,6 +63,7 @@ function App() {
   const [audit, setAudit] = useState([]);
   const [indexStatus, setIndexStatus] = useState(null);
   const [notice, setNotice] = useState("");
+  const [lastSync, setLastSync] = useState(null);
 
   async function refresh() {
     try {
@@ -73,6 +74,7 @@ function App() {
       }
       setAudit(auditRows);
       setIndexStatus(vectorStatus);
+      setLastSync(new Date());
     } catch (error) {
       setNotice(`Backend not ready: ${error.message}`);
     }
@@ -80,6 +82,8 @@ function App() {
 
   useEffect(() => {
     refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const stats = useMemo(() => {
@@ -119,21 +123,21 @@ function App() {
           <strong><AlertTriangle size={14} /> SYNTHETIC DEMO DATA - NO REAL CASE RECORDS</strong>
           <button onClick={refresh}>Refresh</button>
         </header>
-        <AuditRail audit={audit} />
+        <AuditRail audit={audit} lastSync={lastSync} />
         {notice && <div className="notice">{notice}</div>}
         {view === "dashboard" && <Dashboard stats={stats} cases={cases} indexStatus={indexStatus} refresh={refresh} setNotice={setNotice} />}
         {view === "queue" && <CaseQueue cases={cases} select={(row) => { setSelected(row); navigate("detail"); }} />}
         {view === "detail" && <CaseDetail selected={selected} candidates={candidates} setView={navigate} />}
         {view === "search" && <PhotoSearch setCandidates={setCandidates} setCoverage={setCoverage} coverage={coverage} candidates={candidates} setNotice={setNotice} refresh={refresh} />}
         {view === "missing" && <Intake type="missing" setNotice={setNotice} refresh={refresh} />}
-        {view === "found" && <Intake type="found" setNotice={setNotice} refresh={refresh} />}
+        {view === "found" && <Intake type="found" setNotice={setNotice} refresh={refresh} setCandidates={setCandidates} setCoverage={setCoverage} setView={navigate} />}
         {view === "audit" && <AuditPage audit={audit} />}
       </main>
     </div>
   );
 }
 
-function AuditRail({ audit }) {
+function AuditRail({ audit, lastSync }) {
   const latest = audit[0];
   return (
     <section className="audit-rail">
@@ -143,6 +147,7 @@ function AuditRail({ audit }) {
       ) : (
         <span>Audit trail active. Searches and reviewer decisions will appear here.</span>
       )}
+      {lastSync && <em>Live sync {lastSync.toLocaleTimeString()}</em>}
     </section>
   );
 }
@@ -325,19 +330,44 @@ function ZeroState() {
   return <div className="zero"><Search size={24} /><h3>No candidates displayed yet</h3><p>Run a found-photo search. If zero results return, the UI will keep coverage stats and next steps visible.</p></div>;
 }
 
-function Intake({ type, setNotice, refresh }) {
+function Intake({ type, setNotice, refresh, setCandidates, setCoverage, setView }) {
   const isMissing = type === "missing";
+  const [processing, setProcessing] = useState(false);
+
+  function searchFormFromIntake(form) {
+    const searchForm = new FormData();
+    const image = form.get("image");
+    if (form.get("age")) searchForm.set("age", form.get("age"));
+    if (form.get("gender")) searchForm.set("gender", form.get("gender"));
+    if (form.get("region")) searchForm.set("region", form.get("region"));
+    if (image) searchForm.set("image", image);
+    return searchForm;
+  }
+
   async function submit(event) {
     event.preventDefault();
+    setProcessing(true);
     const form = new FormData(event.currentTarget);
     form.set("report_type", isMissing ? "missing" : "found");
+    const searchForm = !isMissing ? searchFormFromIntake(form) : null;
     try {
       const result = await apiFetch("/cases", { method: "POST", body: form });
-      setNotice(`Submitted ${result.case_id}. Embedding stored once at intake.`);
+      if (isMissing) {
+        setNotice(`Submitted ${result.case_id}. Embedding stored once at intake and added to the searchable missing-record set.`);
+      } else {
+        setNotice(`Submitted ${result.case_id}. Processing found photo and running ranked candidate search...`);
+        const search = await apiFetch("/search", { method: "POST", body: searchForm });
+        setCandidates?.(search.candidates);
+        setCoverage?.(search.coverage);
+        setNotice(`Submitted ${result.case_id}. Search complete: ${search.coverage.returned_candidates} candidate records surfaced for reviewer triage.`);
+        setView?.("search");
+      }
       await refresh();
       event.currentTarget.reset();
     } catch (error) {
       setNotice(error.message);
+    } finally {
+      setProcessing(false);
     }
   }
   return (
@@ -353,7 +383,7 @@ function Intake({ type, setNotice, refresh }) {
         <label className="wide">Location<input name="location" required placeholder="Station, shelter, locality, or landmark" /></label>
         <label className="wide">Notes<textarea name="notes" placeholder="Distinguishing features or context" /></label>
         <label className="upload-line"><Upload size={18} /> Upload demo photo<input required name="image" type="file" accept="image/*" /></label>
-        <button className="primary">Submit and store embedding</button>
+        <button className="primary" disabled={processing}>{processing ? "Processing image..." : isMissing ? "Submit and store embedding" : "Submit and search candidates"}</button>
       </form>
     </section>
   );
